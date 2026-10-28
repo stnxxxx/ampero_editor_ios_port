@@ -1,0 +1,49 @@
+# Builds the app on a GitHub-hosted Mac and publishes an unsigned .ipa as an
+# artifact. Sign and install it from Windows with Sideloadly (see README).
+name: Build iOS
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Test AmperoKit
+        run: swift test --package-path AmperoKit
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen
+
+      - name: Build unsigned app
+        run: |
+          xcodebuild \
+            -project AmperoEditor.xcodeproj \
+            -scheme AmperoEditor \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package IPA
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/AmperoEditor.app Payload/
+          zip -qry AmperoEditor-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmperoEditor-unsigned-ipa
+          path: AmperoEditor-unsigned.ipa
